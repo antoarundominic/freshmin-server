@@ -75,6 +75,13 @@ app.use(orm.express("mysql://root:@localhost/minions", {
 
 app.use(bodyParser.json());
 
+// app.use(function(req, res, next) {
+//   // res.header("Access-Control-Allow-Origin", "*");
+//   // res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept");
+//   next();
+// });
+
+
 // io.listen(3000, function () {
 //   console.log('Example app listening on port 3000!');
 
@@ -84,11 +91,10 @@ app.get('/', function (req, res) {
   res.send('Hello World!');
 });
 
-// var socket = io.listen(app);
-
 io.sockets.on('connection', function(socket){
   try{
     util.log("Websocket connection established with Client");
+    console.log('SOcket Account', socket.account);
     socket.room = "Room_For_" + socket.account;
     socket.join(socket.room);
     socket.on('init_socket', function(params){
@@ -97,7 +103,8 @@ io.sockets.on('connection', function(socket){
           params = JSON.parse(params);
         socket.user = params.user_id;
         socket.account = params.account_id;
-        socket.user_room = "Room_For_" + socket.user + "_" + socket.account;
+        socket.user_room = "Room_For_" + params.user_id + "_" + params.account_id;
+        console.log('SOcket USER ROOM', socket.user_room);
         socket.join(socket.user_room);
       } catch(error){
         console.log('error', 'Error in Init socket : ' + error.message);
@@ -113,7 +120,7 @@ io.sockets.on('connection', function(socket){
 function scheduleJob(todo){
   var milliseconds = todo.due_date - (new Date()).getTime();
   var job = queue.create('notify'+todo.id, 
-                  { todo_id: todo.id })
+                  { todo_id: todo.id, user_id: todo.user_id, account_id: todo.account_id})
                   .delay(milliseconds)
                   .save(function(err){
                       todo.job_id = job.id;
@@ -124,7 +131,12 @@ function scheduleJob(todo){
   //Timer expires and we need to send notification from here
   //Hook to send notification
   queue.process('notify'+todo.id, function(job, done) {
-    
+    console.log('todo', JSON.stringify(job));
+    console.log('pushed');
+    console.log('Room_For_' + job.data.user_id + "_" + job.data.account_id);
+    io.in("Room_For_" + job.data.user_id + "_" + job.data.account_id).emit('todo_reminder', {
+      todo_id: job.data.todo_id
+    });
   });
 }
 
