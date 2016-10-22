@@ -35,6 +35,39 @@ app.get('/', function (req, res) {
   res.send('Hello World!');
 });
 
+
+function scheduleJob(todo){
+  var milliseconds = todo.due_date - (new Date()).getTime();
+  var job = queue.create('notify'+todo.id, 
+                  { todo_id: todo.id })
+                  .delay(milliseconds)
+                  .save(function(err){
+                      todo.job_id = job.id;
+                      todo.save();
+                  });
+  console.log("Job created");
+
+  //Timer expires and we need to send notification from here
+  //Hook to send notification
+  queue.process('notify'+todo.id, function(job, done) {
+    console.log("***Notify the user on due date***");
+  });
+}
+
+function removeJob(todo){
+  //Deletion logic
+  kue.Job.get( todo.job_id, function( err, job ) {
+  // change job properties
+    if (err) return;
+    if(job!=undefined){
+      console.log("Job Id : "+ job.id);
+      job.remove(function(err,job){
+        console.log('Job removed');
+      }); 
+    }
+  });
+}
+
 app.post('/todos/', function (req, res) {
   var due_date = new Date(req.body.due_date)- (330*60*1000);
   req.models.todo.create({
@@ -46,22 +79,8 @@ app.post('/todos/', function (req, res) {
       created_at: new Date(),
       updated_at: new Date()
     },function(err, todo){
-        var milliseconds = todo.due_date - (new Date()).getTime();
-        var job = queue.create('notify'+todo.id, 
-                  { todo_id: todo.id })
-                  .delay(milliseconds)
-                  .save(function(err){
-                      todo.job_id = job.id;
-                      todo.save();
-                  });
-
-      //Timer expires and we need to send notification from here
-      //Hook to send notification
-      queue.process('notify'+todo.id, function(job, done) {
-        console.log("Notify the user on due date");
-      });
-
       if(err) { console.log('Error Creating todo', err); }
+      scheduleJob(todo);
       res.json(todo);
   });
 });
@@ -88,27 +107,37 @@ app.get('/todos/:account_id/:ticket_id', function(req, res){
 
 app.patch('/todos/:id', function(req,res){
   req.models.todo.get(req.params.id, function(err, todo) {
+    var due_date=0,milliseconds=0;
+    var dueDateChanged =false, statusChanged=false;
     if(err){
       console.log('Error Fetching Todo', err);
     }
     if(req.body.content){
       todo.content = req.body.content;
     }
-    if(req.body.completed) {
-      todo.completed = req.body.completed;
-      console.log("inside completed");
-      //Undo logic should be thought.
-      //Deletion logic
-      kue.Job.get( todo.job_id, function( err, job ) {
-      // change job properties
-        if (err) return;
-        console.log("Job Id : "+ job.id);
-        job.remove(function(err,job){
-          console.log('removed completed job #%d', job.id);
-        });
-      });
+    if(req.body.due_date){
+      due_date = new Date(req.body.due_date)-(330*60*1000);
+      if(todo.due_date != new Date(due_date)){
+        dueDateChanged=true;
+        console.log("Due Date Changed");
+      }
+      todo.due_date = new Date(due_date);
+      milliseconds = due_date - (new Date()).getTime();
+    }
+    if(req.body.completed){
+      if(todo.completed != req.body.completed){
+        statusChanged=true;
+        console.log("Completion Changed");
+      }
+      todo.completed =req.body.completed;
     }
     todo.save();
+    if(dueDateChanged || statusChanged){
+      removeJob(todo);
+      if(milliseconds > 0){
+        scheduleJob(todo);
+      }
+    }
     res.json(todo);
   });
 });
