@@ -86,18 +86,27 @@ app.get('/', function (req, res) {
 
 // var socket = io.listen(app);
 
-socket.on('connection', function(client){ 
-    console.log('Connection to client established');
-
-    // Success!  Now listen to messages to be received
-    client.on('message',function(event){ 
-        console.log('Received message from client!',event);
+io.sockets.on('connection', function(socket){
+  try{
+    util.log("Websocket connection established with Client");
+    socket.room = "Room_For_" + socket.account;
+    socket.join(socket.room);
+    socket.on('init_socket', function(params){
+      try{
+        if(typeof params == 'string')
+          params = JSON.parse(params);
+        socket.user = params.user_id;
+        socket.account = params.account_id;
+        socket.user_room = "Room_For_" + socket.user + "_" + socket.account;
+        socket.join(socket.user_room);
+      } catch(error){
+        console.log('error', 'Error in Init socket : ' + error.message);
+      }
     });
-
-    client.on('disconnect',function(){
-        clearInterval(interval);
-        console.log('Server has disconnected');
-    });
+    }catch(e)
+    {
+      console.log('error','Error in connection function : ' + e.message);
+  }
 });
 
 
@@ -115,7 +124,7 @@ function scheduleJob(todo){
   //Timer expires and we need to send notification from here
   //Hook to send notification
   queue.process('notify'+todo.id, function(job, done) {
-    console.log("***Notify the user on due date***");
+    
   });
 }
 
