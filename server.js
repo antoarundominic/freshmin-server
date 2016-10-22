@@ -3,15 +3,56 @@ var http = require('http');
 var orm = require("orm");
 var util = require('util');
 var bodyParser = require('body-parser');
-// var lt = require('long-timeout');
-var kue = require('kue')
- , queue = kue.createQueue();
-var app = express();
-var server = http.createServer(app).listen(5000, function(){
-  console.log('Express server listening on port ' + 5000);
-});
-var _io = require('socket.io');//.listen(app.get('port'));
-var socket=_io(server);;
+var _io = require('socket.io');
+var nconf = require('nconf');
+var kue = require('kue'),
+  queue = kue.createQueue();
+global.domain  = require('domain');
+
+nconf.argv().env().file({ file: './conf.json' });
+
+var app = exports.app = express();
+app.set('redisHost', nconf.get('redis').host);
+app.set('redisPort', nconf.get('redis').port);
+console.log('redisHost', util.inspect(app.get('redisHost')));
+console.log('redisPort', util.inspect(app.get('redisPort')));
+app.set('port', 3000);
+
+
+var server, io;
+var socket=_io(server);
+
+function startServer (callback, callbackArg) {
+  server = http.createServer(app).listen(app.get('port'), function(){
+    util.log('Express server listening on port ' + app.get('port'));
+  });
+  exports.server = server;
+  io = exports.io = _io(server);
+
+  exports.ioDomain = ioDomain = domain.create();
+  ioDomain.add(io.sockets);
+  ioDomain.exit();
+
+  exports.serverDomain = serverDomain = domain.create();
+  serverDomain.add(server);
+  serverDomain.exit();
+
+  callback(callbackArg);
+}
+
+if (require.main === module) {
+  console.log("Starting IO server");
+  startServer(afterInit);
+} else {
+  exports.startServer = function(callback) { startServer(afterInit, callback); };
+  exports.stopServer = function(callback) { server.close(callback); };
+  exports.require = module.require;
+}
+
+function afterInit (callback) {
+  require('./socketio/init.js');
+  if (callback) { callback(); };
+}
 
 
 app.use(orm.express("mysql://root:@localhost/minions", {
