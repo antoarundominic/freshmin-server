@@ -1,4 +1,5 @@
 var express = require('express');
+var http = require('http');
 var orm = require("orm");
 var util = require('util');
 var bodyParser = require('body-parser');
@@ -6,6 +7,12 @@ var bodyParser = require('body-parser');
 var kue = require('kue')
  , queue = kue.createQueue();
 var app = express();
+var server = http.createServer(app).listen(5000, function(){
+  console.log('Express server listening on port ' + 5000);
+});
+var _io = require('socket.io');//.listen(app.get('port'));
+var socket=_io(server);;
+
 
 app.use(orm.express("mysql://root:@localhost/minions", {
   define: function (db, models, next) {
@@ -27,12 +34,29 @@ app.use(orm.express("mysql://root:@localhost/minions", {
 
 app.use(bodyParser.json());
 
-app.listen(3000, function () {
-  console.log('Example app listening on port 3000!');
-});
+// io.listen(3000, function () {
+//   console.log('Example app listening on port 3000!');
+
+// });
 
 app.get('/', function (req, res) {
   res.send('Hello World!');
+});
+
+// var socket = io.listen(app);
+
+socket.on('connection', function(client){ 
+    console.log('Connection to client established');
+
+    // Success!  Now listen to messages to be received
+    client.on('message',function(event){ 
+        console.log('Received message from client!',event);
+    });
+
+    client.on('disconnect',function(){
+        clearInterval(interval);
+        console.log('Server has disconnected');
+    });
 });
 
 

@@ -33,3 +33,5 @@ content-type
 bytes
 body-parser
 bignumber.js
+node_modules/socket.io
+node_modules/http

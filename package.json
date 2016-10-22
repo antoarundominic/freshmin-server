@@ -11,9 +11,11 @@
   "dependencies": {
     "body-parser": "^1.15.2",
     "express": "^4.14.0",
+    "http": "0.0.0",
     "kue": "^0.11.4",
     "long-timeout": "^0.1.1",
     "mysql": "^2.0.0-alpha8",
-    "orm": "^3.1.0"
+    "orm": "^3.1.0",
+    "socket.io": "^1.5.0"
   }
 }
