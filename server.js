@@ -266,24 +266,56 @@ app.delete('/todos/:id',function(req, res){
 app.post('/ticket_updated',function(req, res){
   console.log('Body of Request inside Ticket Updated',req.body);
   io.in('Room_For_'+req.body.iParams.full_domain).emit('ticket_updated', req.body);
+  var user_id= req.body.iParams.user_id;
+
+  req.models.device.find({
+    user_id: req.query.user_id
+  }, ['id', 'Z'], function(err, devices){
+      if(devices[0]){
+        var device=devices[0];
+        initialNotification(device);
+        if(err) { console.log('Error Creating notification', err); }
+        res.json(true);
+      }
+  });
   res.json(true);
+});
+
+
 app.get('/device/', function(req, res) {
-  console.log("'/device/register' req query", req.query);
-  req.models.device.create({
-      account_id: req.query.accountId,
-      device_id: req.query.deviceId,
-      p256dh: req.query.p256dh,
-      auth: req.query.auth,
-      email: req.query.email,
-      user_id: req.query.userId,
-      created_at: new Date()
-    },function(err, device){
-      console.log("device", device);
-      initialNotification(device);
-      if(err) { console.log('Error Creating todo', err); }
-      res.json(true);
+  req.models.device.find({
+    user_id: req.query.userId
+  }, ['id', 'Z'], function(err, devices){
+      if(devices[0]){
+        var device=devices[0];
+        device.auth=req.query.auth;
+        device.p256dh=req.query.p256dh;
+        device.save();
+        initialNotification(device);
+        console.log('Device Id : ', device.id);
+        if(err) { console.log('Error updating device', err); }
+        res.json(true);
+      }
+      else{
+        console.log("Create");
+        req.models.device.create({
+            account_id: req.query.accountId,
+            device_id: req.query.deviceId,
+            p256dh: req.query.p256dh,
+            auth: req.query.auth,
+            email: req.query.email,
+            user_id: req.query.userId,
+            created_at: new Date()
+          },function(err, device){
+            console.log('Device Created : ', device.id);
+            initialNotification(device);
+            if(err) { console.log('Error Creating device', err); }
+            res.json(true);
+        });
+      }
   });
 });
+
 
 app.post('/note_added',function(req, res){
   console.log('Body of Request inside note added',req.body);
@@ -301,13 +333,12 @@ function initialNotification(device) {
   // }","auth":"Gp0NKhA4HC7E-hIW-iYCVg=="}}"
 
   const pushSubscription = {
-  endpoint: 'https://android.googleapis.com/gcm/send/'+device.device_id,
-  keys: {
-    auth: device.auth,
-    p256dh: device.p256dh
-  }
-};
-
+    endpoint: 'https://android.googleapis.com/gcm/send/'+device.device_id,
+    keys: {
+      auth: device.auth,
+      p256dh: device.p256dh
+    }
+  };
   sendGCM(pushSubscription, "test messaage");
 }
 
