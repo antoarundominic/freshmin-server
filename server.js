@@ -364,8 +364,15 @@ function sendGCM(subscription, msg) {
 }
 
 function notifyTicket(domain, key,req,action) {
+  var ticketId;
+  try{
+    ticketId = req.body.context.data.id;
+  }
+  catch(e){
+    ticketId = 1;
+  }
   request({
-      url: 'https://'+ domain + '/helpdesk/tickets/1.json',
+      url: 'https://'+ domain + '/helpdesk/tickets/'+ticketId+'.json',
       headers: { Authorization: "Basic " + btoa(key + ':X') },
       json: true,
       method: 'GET'
