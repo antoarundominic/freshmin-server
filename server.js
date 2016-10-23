@@ -272,16 +272,7 @@ app.post('/ticket_updated',function(req, res){
   io.in('Room_For_'+req.body.iParams.full_domain).emit('ticket_updated', req.body);
   var user_id= req.body.iParams.user_id;
 
-  // req.models.device.find({
-  //   user_id: req.query.user_id
-  // }, ['id', 'Z'], function(err, devices){
-  //     if(devices[0]){
-  //       var device=devices[0];
-  //       initialNotification(device);
-  //       if(err) { console.log('Error Creating notification', err); }
-  //       res.json(true);
-  //     }
-  // });
+  
   res.json(true);
 });
 
@@ -328,13 +319,14 @@ app.post('/note_added',function(req, res){
 });
 
 app.post('/ticket_created', function(req, res){
-  console.log('Body of Request inside Ticket Created',req.body);
+  // console.log('Body of Request inside Ticket Created',req.body);
+  console.log('Body of Request inside Ticket Created');
   // ticket = fetchResource(req.body.iParams.full_domain, 'ticket', req.body.context.data.id, req.body.iParams.api_key);
-  notifyTicket(req.body.iParams.full_domain, req.body.iParams.api_key);
+  notifyTicket(req.body.iParams.full_domain, req.body.iParams.api_key,req);
   res.json(true);
 });
 
-function initialNotification(device) {
+function initialNotification(device ,msg) {
   // var msg = {
   //   registration_ids: [device_id],
   //   data: {
@@ -350,12 +342,13 @@ function initialNotification(device) {
       p256dh: device.p256dh
     }
   };
-  sendGCM(pushSubscription, "test messaage");
+  sendGCM(pushSubscription, msg);
 }
 
-function sendGCM(msg) {
-  var payload = JSON.stringify({title: 'Welcome', body: 'Minion'});
-  var resp = webpush.sendNotification(msg, payload).then(function(data) {
+function sendGCM(subscription, msg) {
+  // msg  = msg || { title: 'Hello', body: 'Welcome' };
+  var payload = JSON.stringify(msg);
+  var resp = webpush.sendNotification(subscription, payload).then(function(data) {
     console.log("sendGCM res", data);  
   });
   
@@ -373,7 +366,7 @@ function sendGCM(msg) {
   // })
 }
 
-function notifyTicket(domain, key) {
+function notifyTicket(domain, key,req) {
   request({
       url: 'https://'+ domain + '/helpdesk/tickets/1.json',
       headers: { Authorization: "Basic " + btoa(key + ':X') },
@@ -385,6 +378,21 @@ function notifyTicket(domain, key) {
       console.log('Body', body);
       console.log('DOmain', domain);
       console.log('body.helpdesk_ticket', body.helpdesk_ticket);
-      io.in('Room_For_'+domain).emit('ticket_created', body.helpdesk_ticket);
+      req.models.device.find({
+        user_id: 56
+      }, ['id', 'Z'], function(err, devices){
+          console.log("Device Check : "+req.body.context.data.responder_id);
+          if(devices[0]){
+            var device=devices[0];
+            console.log("Notified User");
+            console.log('Created', 'Ticket [#'+  body.helpdesk_ticket.display_id + '] Created');
+            console.log('URL', 'https://'+domain+'/helpdesk/tickets/' + body.helpdesk_ticket.display_id);
+
+            initialNotification(device, {title: 'Ticket [#'+  body.helpdesk_ticket.display_id + '] Created', body:'https://'+domain+'/helpdesk/tickets/' + body.helpdesk_ticket.display_id });
+            if(err) { console.log('Error Creating notification', err); }
+            // res.json(true);
+          }
+      });
+      // io.in('Room_For_'+domain).emit('ticket_created', body.helpdesk_ticket);
   });
 }
