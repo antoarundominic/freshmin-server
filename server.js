@@ -158,7 +158,8 @@ function scheduleJob(todo){
     console.log('todo', JSON.stringify(job));
     console.log('pushed');
     console.log('Room_For_' + job.data.user_id + "_" + job.data.full_domain);
-
+    notifyUser(req, job.data.user_id, job.data.ticket_id, job.data.full_domain, 'Todo for ticket', 'Due');
+    // notifyTicket(req.body.iParams.full_domain, req.body.iParams.api_key,req);
     io.in("Room_For_" + job.data.user_id + "_" + job.data.full_domain).emit('todo_reminder', job.data);
   });
 }
@@ -270,9 +271,8 @@ app.delete('/todos/:id',function(req, res){
 app.post('/ticket_updated',function(req, res){
   console.log('Body of Request inside Ticket Updated',req.body);
   io.in('Room_For_'+req.body.iParams.full_domain).emit('ticket_updated', req.body);
-  var user_id= req.body.iParams.user_id;
-
-  
+  // var user_id= req.body.iParams.user_id;
+  notifyTicket(req.body.iParams.full_domain, req.body.iParams.api_key,req,'Updated');
   res.json(true);
 });
 
@@ -322,7 +322,7 @@ app.post('/ticket_created', function(req, res){
   // console.log('Body of Request inside Ticket Created',req.body);
   console.log('Body of Request inside Ticket Created');
   // ticket = fetchResource(req.body.iParams.full_domain, 'ticket', req.body.context.data.id, req.body.iParams.api_key);
-  notifyTicket(req.body.iParams.full_domain, req.body.iParams.api_key,req);
+  notifyTicket(req.body.iParams.full_domain, req.body.iParams.api_key,req,'Created');
   res.json(true);
 });
 
@@ -366,7 +366,7 @@ function sendGCM(subscription, msg) {
   // })
 }
 
-function notifyTicket(domain, key,req) {
+function notifyTicket(domain, key,req,action) {
   request({
       url: 'https://'+ domain + '/helpdesk/tickets/1.json',
       headers: { Authorization: "Basic " + btoa(key + ':X') },
@@ -378,21 +378,26 @@ function notifyTicket(domain, key,req) {
       console.log('Body', body);
       console.log('DOmain', domain);
       console.log('body.helpdesk_ticket', body.helpdesk_ticket);
-      req.models.device.find({
-        user_id: 56
+      // io.in('Room_For_'+domain).emit('ticket_created', body.helpdesk_ticket);
+      notifyUser(req,req.body.context.data.responder_id,body.helpdesk_ticket.display_id, domain,'Ticket',action );
+  });
+}
+
+function notifyUser(req, user_id, ticket_id, domain, model, action){
+  // user_id=56;
+  if(user_id==null) { 
+    console.log("USER ID NOT FOUND");
+    return;
+  };
+  req.models.device.find({
+        user_id: user_id
       }, ['id', 'Z'], function(err, devices){
-          console.log("Device Check : "+req.body.context.data.responder_id);
           if(devices[0]){
             var device=devices[0];
             console.log("Notified User");
-            console.log('Created', 'Ticket [#'+  body.helpdesk_ticket.display_id + '] Created');
-            console.log('URL', 'https://'+domain+'/helpdesk/tickets/' + body.helpdesk_ticket.display_id);
-
-            initialNotification(device, {title: 'Ticket [#'+  body.helpdesk_ticket.display_id + '] Created', body:'https://'+domain+'/helpdesk/tickets/' + body.helpdesk_ticket.display_id });
+            initialNotification(device, {title: 'Ticket [#'+  ticket_id + ']'+action, body:'https://'+domain+'/helpdesk/tickets/' + ticket_id });
             if(err) { console.log('Error Creating notification', err); }
             // res.json(true);
-          }
-      });
-      // io.in('Room_For_'+domain).emit('ticket_created', body.helpdesk_ticket);
+    }
   });
 }
