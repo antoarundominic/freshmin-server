@@ -150,11 +150,10 @@ function removeJob(todo){
 }
 
 app.post('/todos/', function (req, res) {
-  console.log('BOdy', util.inspect(req.body));
   var due_date=null;
   if(req.body.due_date)
   {
-    due_date=new Date(new Date(req.body.due_date)- (330*60*1000));
+    due_date=new Date(new Date(req.body.due_date) - (330*60*1000));
   }
   req.models.todo.create({
       ticket_id: req.body.ticket_id,
@@ -184,7 +183,7 @@ app.get('/todos/:id', function(req, res){
 app.get('/todos/:account_id/:ticket_id/:user_id', function(req, res){
   req.models.todo.find({
     account_id: req.params.account_id, ticket_id: req.params.ticket_id, user_id: req.params.user_id
-  }, function(err, todos){
+  }, ['id', 'Z'], function(err, todos){
     if(err) {
       console.log('Error Fetching Todo', err);
     }
