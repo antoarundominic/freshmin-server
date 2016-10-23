@@ -75,18 +75,6 @@ app.use(orm.express("mysql://root:@localhost/minions", {
 
 app.use(bodyParser.json());
 
-// app.use(function(req, res, next) {
-//   // res.header("Access-Control-Allow-Origin", "*");
-//   // res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept");
-//   next();
-// });
-
-
-// io.listen(3000, function () {
-//   console.log('Example app listening on port 3000!');
-
-// });
-
 app.get('/', function (req, res) {
   res.send('Hello World!');
 });
@@ -96,6 +84,7 @@ io.sockets.on('connection', function(socket){
     util.log("Websocket connection established with Client");
     console.log('SOcket Account', socket.account);
     socket.room = "Room_For_" + socket.account;
+    console.log('Socket Account', socket.account);
     socket.join(socket.room);
     socket.on('init_socket', function(params){
       try{
@@ -103,7 +92,8 @@ io.sockets.on('connection', function(socket){
           params = JSON.parse(params);
         socket.user = params.user_id;
         socket.account = params.account_id;
-        socket.user_room = "Room_For_" + params.user_id + "_" + params.account_id;
+        socket.account_url = params.account_url;
+        socket.user_room = "Room_For_" + params.user_id + "_" + params.account_url;
         console.log('SOcket USER ROOM', socket.user_room);
         socket.join(socket.user_room);
       } catch(error){
@@ -240,4 +230,17 @@ app.delete('/todos/:id',function(req, res){
     todo.remove();
     res.json(todo);
   });
+});
+
+
+app.post('/ticket_updated',function(req, res){
+  console.log('Body of Request inside Ticket Updated',req.body);
+  io.in('Room_For_'+req.body.iParams.full_domain).emit('ticket_updated', req.body);
+  res.json(true);
+});
+
+app.post('/note_added',function(req, res){
+  console.log('Body of Request inside note added',req.body);
+  io.in('Room_For_'+req.body.iParams.full_domain).emit('note_added', req.body);
+  res.json(true);
 });
