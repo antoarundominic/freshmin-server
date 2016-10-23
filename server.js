@@ -179,7 +179,7 @@ app.post('/todos/', function (req, res) {
   var due_date=null;
   if(req.body.due_date)
   {
-    due_date=new Date(new Date(req.body.due_date) - (330*60*1000));
+    due_date=new Date(req.body.due_date);
   }
   req.models.todo.create({
       ticket_id: req.body.ticket_id,
