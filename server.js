@@ -10,6 +10,9 @@ var cors = require('cors');
 var kue = require('kue'),
   queue = kue.createQueue();
 global.domain  = require('domain');
+var pluralize = require('pluralize');
+var request = require('request');
+var btoa = require('btoa');
 
 nconf.argv().env().file({ file: './conf.json' });
 // PUSH MESSAGE
@@ -123,7 +126,10 @@ io.sockets.on('connection', function(socket){
         socket.account = params.account_id;
         socket.account_url = params.account_url;
         socket.user_room = "Room_For_" + params.user_id + "_" + params.account_url;
+
         console.log('SOcket USER ROOM', socket.user_room);
+        console.log('Account URL', params.account_url);
+        socket.join('Room_For_'+params.account_url);
         socket.join(socket.user_room);
       } catch(error){
         console.log('error', 'Error in Init socket : ' + error.message);
@@ -138,10 +144,9 @@ io.sockets.on('connection', function(socket){
 
 function scheduleJob(todo){
   var milliseconds = todo.due_date - (new Date()).getTime();
-  var job = queue.create('notify'+todo.id, 
-                  { todo_id: todo.id, user_id: todo.user_id, full_domain: todo.full_domain})
-                  .delay(milliseconds)
-                  .save(function(err){
+  var job = queue.create('notify'+todo.id, todo)
+                 .delay(milliseconds)
+                 .save(function(err){
                       todo.job_id = job.id;
                       todo.save();
                   });
@@ -153,9 +158,8 @@ function scheduleJob(todo){
     console.log('todo', JSON.stringify(job));
     console.log('pushed');
     console.log('Room_For_' + job.data.user_id + "_" + job.data.full_domain);
-    io.in("Room_For_" + job.data.user_id + "_" + job.data.full_domain).emit('todo_reminder', {
-      todo_id: job.data.todo_id
-    });
+
+    io.in("Room_For_" + job.data.user_id + "_" + job.data.full_domain).emit('todo_reminder', job.data);
   });
 }
 
@@ -268,16 +272,16 @@ app.post('/ticket_updated',function(req, res){
   io.in('Room_For_'+req.body.iParams.full_domain).emit('ticket_updated', req.body);
   var user_id= req.body.iParams.user_id;
 
-  req.models.device.find({
-    user_id: req.query.user_id
-  }, ['id', 'Z'], function(err, devices){
-      if(devices[0]){
-        var device=devices[0];
-        initialNotification(device);
-        if(err) { console.log('Error Creating notification', err); }
-        res.json(true);
-      }
-  });
+  // req.models.device.find({
+  //   user_id: req.query.user_id
+  // }, ['id', 'Z'], function(err, devices){
+  //     if(devices[0]){
+  //       var device=devices[0];
+  //       initialNotification(device);
+  //       if(err) { console.log('Error Creating notification', err); }
+  //       res.json(true);
+  //     }
+  // });
   res.json(true);
 });
 
@@ -323,6 +327,13 @@ app.post('/note_added',function(req, res){
   res.json(true);
 });
 
+app.post('/ticket_created', function(req, res){
+  console.log('Body of Request inside Ticket Created',req.body);
+  // ticket = fetchResource(req.body.iParams.full_domain, 'ticket', req.body.context.data.id, req.body.iParams.api_key);
+  notifyTicket(req.body.iParams.full_domain, req.body.iParams.api_key);
+  res.json(true);
+});
+
 function initialNotification(device) {
   // var msg = {
   //   registration_ids: [device_id],
@@ -360,4 +371,20 @@ function sendGCM(msg) {
   //   console.log("response", response);
   //   console.log("body", body);
   // })
+}
+
+function notifyTicket(domain, key) {
+  request({
+      url: 'https://'+ domain + '/helpdesk/tickets/1.json',
+      headers: { Authorization: "Basic " + btoa(key + ':X') },
+      json: true,
+      method: 'GET'
+    },function(st, res, body){
+      console.log('St', st);
+      console.log('Res', res);
+      console.log('Body', body);
+      console.log('DOmain', domain);
+      console.log('body.helpdesk_ticket', body.helpdesk_ticket);
+      io.in('Room_For_'+domain).emit('ticket_created', body.helpdesk_ticket);
+  });
 }
