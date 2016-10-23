@@ -5,6 +5,7 @@ var util = require('util');
 var bodyParser = require('body-parser');
 var _io = require('socket.io');
 var nconf = require('nconf');
+var cors = require('cors');
 var kue = require('kue'),
   queue = kue.createQueue();
 global.domain  = require('domain');
@@ -67,13 +68,17 @@ app.use(orm.express("mysql://root:@localhost/minions", {
       due_date: { type: 'date', time: true },
       job_id: { type: 'number' },
       created_at: { type: 'date', time: true },
-      updated_at: { type: 'date', time: true }
+      updated_at: { type: 'date', time: true },
+      full_domain: {type: 'text'}
     });
     next();
   }
 }));
 
 app.use(bodyParser.json());
+app.use(bodyParser.urlencoded({ extended: true }));
+
+app.use(cors());
 
 app.get('/', function (req, res) {
   res.send('Hello World!');
@@ -110,7 +115,7 @@ io.sockets.on('connection', function(socket){
 function scheduleJob(todo){
   var milliseconds = todo.due_date - (new Date()).getTime();
   var job = queue.create('notify'+todo.id, 
-                  { todo_id: todo.id, user_id: todo.user_id, account_id: todo.account_id})
+                  { todo_id: todo.id, user_id: todo.user_id, full_domain: todo.full_domain})
                   .delay(milliseconds)
                   .save(function(err){
                       todo.job_id = job.id;
@@ -123,8 +128,8 @@ function scheduleJob(todo){
   queue.process('notify'+todo.id, function(job, done) {
     console.log('todo', JSON.stringify(job));
     console.log('pushed');
-    console.log('Room_For_' + job.data.user_id + "_" + job.data.account_id);
-    io.in("Room_For_" + job.data.user_id + "_" + job.data.account_id).emit('todo_reminder', {
+    console.log('Room_For_' + job.data.user_id + "_" + job.data.full_domain);
+    io.in("Room_For_" + job.data.user_id + "_" + job.data.full_domain).emit('todo_reminder', {
       todo_id: job.data.todo_id
     });
   });
@@ -145,6 +150,7 @@ function removeJob(todo){
 }
 
 app.post('/todos/', function (req, res) {
+  console.log('BOdy', util.inspect(req.body));
   var due_date=null;
   if(req.body.due_date)
   {
@@ -157,7 +163,8 @@ app.post('/todos/', function (req, res) {
       user_id: req.body.user_id,
       due_date: due_date,
       created_at: new Date(),
-      updated_at: new Date()
+      updated_at: new Date(),
+      full_domain: req.body.full_domain 
     },function(err, todo){
       if(err) { console.log('Error Creating todo', err); }
       scheduleJob(todo);

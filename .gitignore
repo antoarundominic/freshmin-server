@@ -100,3 +100,5 @@ node_modules/http
 /node_modules/after
 /node_modules/accepts
 /node_modules/.bin/window-size
+vary
+cors
