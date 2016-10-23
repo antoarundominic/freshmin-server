@@ -150,15 +150,12 @@ function scheduleJob(todo){
                       todo.job_id = job.id;
                       todo.save();
                   });
-  console.log("Job created");
 
   //Timer expires and we need to send notification from here
   //Hook to send notification
   queue.process('notify'+todo.id, function(job, done) {
-    console.log('todo', JSON.stringify(job));
-    console.log('pushed');
-    console.log('Room_For_' + job.data.user_id + "_" + job.data.full_domain);
-    notifyUser(req, job.data.user_id, job.data.ticket_id, job.data.full_domain, 'Todo for ticket', 'Due');
+    // notifyUser(job.data.req, job.data.user_id, job.data.ticket_id, job.data.full_domain, 'Todo for ticket', 'Due');
+    // done();
     // notifyTicket(req.body.iParams.full_domain, req.body.iParams.api_key,req);
     io.in("Room_For_" + job.data.user_id + "_" + job.data.full_domain).emit('todo_reminder', job.data);
   });
