@@ -1,5 +1,6 @@
 var express = require('express');
 var http = require('http');
+var request = require('request');
 var orm = require("orm");
 var util = require('util');
 var bodyParser = require('body-parser');
@@ -11,7 +12,21 @@ var kue = require('kue'),
 global.domain  = require('domain');
 
 nconf.argv().env().file({ file: './conf.json' });
+// PUSH MESSAGE
+var GCMAPIKEY = "AIzaSyBILCc0_Kt0tbpyUQzfhMcFHBT4HZJMBhQ";
+const webpush = require('web-push');
+// VAPID keys should only be generated only once.
+const vapidKeys = webpush.generateVAPIDKeys();
 
+webpush.setGCMAPIKey(GCMAPIKEY);
+
+webpush.setVapidDetails(
+  'mailto:antoarundominic@gmail.com',
+  vapidKeys.publicKey,
+  vapidKeys.privateKey
+);
+
+////
 var app = exports.app = express();
 app.set('redisHost', nconf.get('redis').host);
 app.set('redisPort', nconf.get('redis').port);
@@ -70,6 +85,15 @@ app.use(orm.express("mysql://root:@localhost/minions", {
       created_at: { type: 'date', time: true },
       updated_at: { type: 'date', time: true },
       full_domain: {type: 'text'}
+    });
+    models.device = db.define("device", {
+      id: { type: 'number', key: true },
+      account_id: {type: 'number'},
+      user_id: { type: 'number'},
+      email: { type: 'text', size: 255 },
+      device_id: { type: 'text' },
+      p256dh: { type: 'text' },
+      auth: { type: 'text' }
     });
     next();
   }
@@ -243,6 +267,22 @@ app.post('/ticket_updated',function(req, res){
   console.log('Body of Request inside Ticket Updated',req.body);
   io.in('Room_For_'+req.body.iParams.full_domain).emit('ticket_updated', req.body);
   res.json(true);
+app.get('/device/', function(req, res) {
+  console.log("'/device/register' req query", req.query);
+  req.models.device.create({
+      account_id: req.query.accountId,
+      device_id: req.query.deviceId,
+      p256dh: req.query.p256dh,
+      auth: req.query.auth,
+      email: req.query.email,
+      user_id: req.query.userId,
+      created_at: new Date()
+    },function(err, device){
+      console.log("device", device);
+      initialNotification(device);
+      if(err) { console.log('Error Creating todo', err); }
+      res.json(true);
+  });
 });
 
 app.post('/note_added',function(req, res){
@@ -250,3 +290,43 @@ app.post('/note_added',function(req, res){
   io.in('Room_For_'+req.body.iParams.full_domain).emit('note_added', req.body);
   res.json(true);
 });
+
+function initialNotification(device) {
+  // var msg = {
+  //   registration_ids: [device_id],
+  //   data: {
+  //     message: "Hello mundo cruel :P" // your payload data
+  //   }
+
+  // }","auth":"Gp0NKhA4HC7E-hIW-iYCVg=="}}"
+
+  const pushSubscription = {
+  endpoint: 'https://android.googleapis.com/gcm/send/'+device.device_id,
+  keys: {
+    auth: device.auth,
+    p256dh: device.p256dh
+  }
+};
+
+  sendGCM(pushSubscription, "test messaage");
+}
+
+function sendGCM(msg) {
+  var payload = JSON.stringify({title: 'Welcome', body: 'Minion'});
+  var resp = webpush.sendNotification(msg, payload).then(function(data) {
+    console.log("sendGCM res", data);  
+  });
+  
+  // request.post({
+  //   uri: 'https://android.googleapis.com/gcm/send',
+  //   json: msg,
+  //   headers: {
+  //     Authorization: 'key=' + GCMAPIKEY
+  //   }
+  // }, function(err, response, body) {
+  //   // callback(err, body);
+  //   console.log("err", err);
+  //   console.log("response", response);
+  //   console.log("body", body);
+  // })
+}
