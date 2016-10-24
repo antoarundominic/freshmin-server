@@ -6,6 +6,9 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
+  "keywords": [
+    "heroku"
+  ],
   "author": "",
   "license": "ISC",
   "dependencies": {
@@ -26,5 +29,8 @@
     "socket.io": "^1.5.0",
     "socket.io-redis": "^1.1.1",
     "web-push": "^3.1.0"
-  }
+  },
+  "engines": {
+    "node": "4.1.1"
+  },
 }
